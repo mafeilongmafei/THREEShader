@@ -5,7 +5,9 @@
     <meta charset="UTF-8">
     <title>loader</title>
     <style>
-        body {
+        body ,html{
+            width: 100%;
+            height: 100%;
             margin: 0;
             overflow: hidden;
             /* 隐藏body窗口区域滚动条 */
@@ -18,18 +20,37 @@
             background-color: #ffffff;
             box-shadow: 0px 0px 3px 0px #000;
         }
+
+        #mask {
+            position: fixed;
+            z-index: 99;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: rgb(37, 37, 37);
+        }
+
+        #mask>span {
+            font-size: 30px;
+            color: #ffffff;
+        }
     </style>
 
-    <script src="/THREEShader/js/three.js"></script>
-    <script src="/THREEShader/js/OrbitControls.js"></script>
-<script src="/THREEShader/js/fflate.min.js"></script>
-    <script src="/THREEShader/js/FBXLoader.js"></script>
- 
+    <script src="./js/three.js"></script>
+    <script src="./js/OrbitControls.js"></script>
+    <script src="./js/fflate.min.js"></script>
+    <script src="./js/FBXLoader.js"></script>
+
 
 </head>
 
 <body>
-    <script src="/THREEShader/js/shader.js"></script>
+    <div id="mask">
+        <span>0%</span>
+    </div>
+    <script src="./js/shader.js"></script>
     <script>
 
 
@@ -53,7 +74,7 @@
         linematerial.uniforms.uStartTime = uStartTime;
 
 
-        loader.load("/THREEShader/model/shanghai.FBX", function (obj) {
+        loader.load("./model/shanghai.FBX", function (obj) {
 
             obj.traverse(function (object) {
                 if (object.name === "LANDMASS") {
@@ -215,7 +236,22 @@
                 }
             });
             scene.add(obj)
-        })
+        }, progress)
+
+        function progress(progress) {
+            let el = document.querySelector("#mask");
+
+            let num = Number.parseInt(progress.loaded / progress.total * 100);
+            if (num >= 100) {
+                el.style.display = "none"
+            } else {
+                {
+                    el.innerHTML = `<span>${num}%</span>`
+
+                }
+            }
+
+        }
         var point = new THREE.PointLight(0xffffff);
         point.position.set(0, 0, 600); //点光源位置
         point.castShadow = true;//开启灯光阴影
