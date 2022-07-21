@@ -20,16 +20,16 @@
         }
     </style>
 
-    <script src="./js/three.js"></script>
-    <script src="./js/OrbitControls.js"></script>
-<script src="./js/fflate.min.js"></script>
-    <script src="./js/FBXLoader.js"></script>
+    <script src="/THREEShader/js/three.js"></script>
+    <script src="/THREEShader/js/OrbitControls.js"></script>
+<script src="/THREEShader/js/fflate.min.js"></script>
+    <script src="/THREEShader/js/FBXLoader.js"></script>
  
 
 </head>
 
 <body>
-    <script src="./js/shader.js"></script>
+    <script src="/THREEShader/js/shader.js"></script>
     <script>
 
 
@@ -53,7 +53,7 @@
         linematerial.uniforms.uStartTime = uStartTime;
 
 
-        loader.load("./model/shanghai.FBX", function (obj) {
+        loader.load("/THREEShader/model/shanghai.FBX", function (obj) {
 
             obj.traverse(function (object) {
                 if (object.name === "LANDMASS") {
