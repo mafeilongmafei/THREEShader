@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>loader</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            /* 隐藏body窗口区域滚动条 */
+        }
+
+        #messageTag {
+            position: absolute;
+            width: 122px;
+            height: 40px;
+            background-color: #ffffff;
+            box-shadow: 0px 0px 3px 0px #000;
+        }
+    </style>
+
+    <script src="./js/three.js"></script>
+    <script src="./js/OrbitControls.js"></script>
+<script src="./js/fflate.min.js"></script>
+    <script src="./js/FBXLoader.js"></script>
+ 
+
+</head>
+
+<body>
+    <script src="./js/shader.js"></script>
+    <script>
+
+
+        var scene = new THREE.Scene();
+        var width = window.innerWidth; //窗口宽度
+        var height = window.innerHeight; //窗口高度
+        var k = width / height; //窗口宽高比
+        //创建相机对象
+        var camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 10000);
+        camera.position.set(0, 100, 500); //设置相机位置
+        camera.enablePan = false
+        let position = new THREE.Vector3()
+        const loader = new THREE.FBXLoader();
+        let time = 0;
+        let uStartTime = {
+            value: 0.0
+        };
+        let zTime = {
+            value: 0.0,
+        }
+        linematerial.uniforms.uStartTime = uStartTime;
+
+
+        loader.load("./model/shanghai.FBX", function (obj) {
+
+            obj.traverse(function (object) {
+                if (object.name === "LANDMASS") {
+                    setFloor(object)
+                }
+                if (object.name === 'CITY_UNTRIANGULATED') {
+                    // object.scale.set(1, 1, 0.2)
+
+                    object.geometry.computeBoundingBox();
+                    object.geometry.computeBoundingSphere();
+                    const {
+                        geometry
+                    } = object;
+
+                    // 获取geometry的长宽高 中心点
+                    const {
+                        center,
+                        radius
+                    } = geometry.boundingSphere;
+
+                    //表示包围盒的下边界   表示包围盒的上边界
+                    const {
+                        max,
+                        min
+                    } = geometry.boundingBox;
+
+                    const size = new THREE.Vector3(
+                        max.x - min.x,
+                        max.y - min.y,
+                        max.z - min.z
+                    );
+
+                    addLine(object, true)
+
+
+                    forMaterial(object.material, (material) => {
+                        material.transparent = true
+                        material.onBeforeCompile = function (shader) {
+
+                            // 中心点
+                            shader.uniforms.uCenter = {
+                                value: center
+                            }
+
+                            shader.uniforms.uTopColor = {
+                                value: new THREE.Color('#00FF00')//绿色
+                            }
+                            shader.uniforms.zTime = zTime
+                            // 效果颜色
+                            shader.uniforms.uColor2 = {
+                                value: new THREE.Color("#7078f3")
+                            }
+                            shader.uniforms.uMax = {
+                                value: max
+                            }
+                            // 效果颜色
+                            shader.uniforms.uFlowColor = {
+                                value: new THREE.Color("#aa00ff")
+                            }
+
+
+                            // geometry大小
+                            shader.uniforms.uSize = {
+                                value: size
+                            }
+                            shader.uniforms.uStartTime = uStartTime
+
+                            // 效果颜色
+                            shader.uniforms.uColor = {
+                                value: new THREE.Color("#5588aa")
+                            }
+
+                            var FragmentBefore = `
+                           
+                            uniform vec3 uSize;
+                            uniform vec3 uTopColor;
+                            uniform vec3 uFlowColor;
+                            uniform vec3 uColor;
+                            uniform vec3 uColor2;
+                            uniform vec3 uMax;
+                            uniform float zTime;
+                            uniform float uStartTime;
+                            uniform vec3 uCenter;
+                            varying vec3 vPosition;
+                        
+                            
+                            void main() {
+                    
+                            `
+                            var FragmentAfter = /*glsl*/`
+                                 vec3 distC = mix(uColor, uTopColor,vPosition.z / (uSize.z * 0.6) ) ;      
+                                
+                                 if(uStartTime >= 0.99){
+                                     float c = vPosition.z/uMax.z;
+                                     if(c > zTime && c < (zTime+0.01)){
+                                        distC = mix(distC , uFlowColor , sin(zTime)+0.8);
+                                     }
+                                 }
+
+                                 float rangeNum = 700.0;
+                                //  float r2 = 100.0;
+                                 float r = distance(vec2(vPosition.x , vPosition.y), vec2(uCenter.x , uCenter.y));
+                                 float r2  =  clamp(r/rangeNum, 0.0 , 1.0); 
+                                if(r2 > (zTime-0.025) && r2 < (zTime+0.025) ){
+                                    distC = uColor2;
+                                }
+                                
+
+
+                                  gl_FragColor = vec4(distC ,1.0 );
+                            `
+                            shader.fragmentShader = shader.fragmentShader.replace("void main() {", FragmentBefore)
+                            shader.fragmentShader = shader.fragmentShader.replace("#include <dithering_fragment>", " #include <dithering_fragment>" + FragmentAfter);
+
+
+
+                            /**
+                             * 对顶点进行修改
+                            */
+                            const vertexBefore = `
+                                 varying vec3 vPosition;
+                                 void main() {
+                                     vPosition = position;
+                            `
+
+                            shader.vertexShader = /*glsl*/`
+                            #define PHONG
+                          
+                            varying vec3 vViewPosition;
+                            #include <common>
+                            #include <uv_pars_vertex>
+                            #include <uv2_pars_vertex>
+                            #include <displacementmap_pars_vertex>
+                            #include <envmap_pars_vertex>
+                            #include <color_pars_vertex>
+                            #include <fog_pars_vertex>
+                            #include <normal_pars_vertex>
+                            #include <morphtarget_pars_vertex>
+                            #include <skinning_pars_vertex>
+                            #include <shadowmap_pars_vertex>
+                            #include <logdepthbuf_pars_vertex>
+                            #include <clipping_planes_pars_vertex>
+                            uniform float uStartTime;
+                            varying vec3 vPosition;
+                                void main() {
+                                    vPosition = position;
+                                    vec3  p = vec3(position.x , position.y , position.z * uStartTime);
+                                    gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+                                }     
+                                
+                            `
+
+
+
+
+                        }
+
+                    })
+                }
+            });
+            scene.add(obj)
+        })
+        var point = new THREE.PointLight(0xffffff);
+        point.position.set(0, 0, 600); //点光源位置
+        point.castShadow = true;//开启灯光阴影
+        scene.add(point); //点光源添加到场景中
+        //环境光
+        var ambient = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambient);
+
+        const axesHelper = new THREE.AxesHelper(30000);
+        scene.add(axesHelper);
+
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+        scene.add(directionalLight);
+        var renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setPixelRatio(window.devicePixelRatio)
+        renderer.shadowMapEnabled = true
+        renderer.setClearColor(0x32373e, 1); //设置背景颜色\
+        camera.updateProjectionMatrix()
+        camera.lookAt(scene.position); //设置相机方向(指向的场景对象)
+        scene.add(camera)
+        var controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.addEventListener("change", () => {
+            camera.updateProjectionMatrix()
+            renderer.render(scene, camera)
+        })
+        renderer.setSize(width, height);//设置渲染区域尺寸
+        document.body.appendChild(renderer.domElement); //body元素中插入canvas对象
+        var raycaster = new THREE.Raycaster();
+        var mouse = new THREE.Vector2();
+
+        function onMouseClick(event) {
+            //通过鼠标点击的位置计算出raycaster所需要的点的位置，以屏幕中心为原点，值的范围为-1到1.
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+            // 通过鼠标点的位置和当前相机的矩阵计算出raycaster
+            raycaster.setFromCamera(mouse, camera);
+
+            // 获取raycaster直线和所有模型相交的数组集合
+            var intersects = raycaster.intersectObjects(scene.children);
+            if (intersects.length > 0) {
+                curActive = intersects[0]
+
+
+            }
+
+        }
+
+        window.addEventListener('click', onMouseClick, false);
+
+
+
+        const width2 = effect.radius * 2;
+        const geometry = new THREE.PlaneBufferGeometry(width2, width2, 1, 1);
+        let { x, y, z } = effect.position
+        const circle = new THREE.Mesh(geometry, material);
+        circle.rotation.x = Math.PI / 2
+        // circle.scale.set(100, 100, 100)
+        circle.position.set(x, y, z);
+        scene.add(circle);
+
+
+
+        requestAnimationFrame(render)
+        let clock = new THREE.Clock()
+        function render() {
+            let time = material.uniforms.time.value
+
+            material.uniforms.time.value += 0.05;
+            uStartTime.value += 0.005;
+            if (uStartTime.value >= 1) {
+                uStartTime.value = 1;
+                if (zTime.value >= 1) {
+                    zTime.value = 0;
+                } else {
+                    zTime.value += 0.005;
+                }
+
+
+
+            }
+
+            time += 0.05;
+            renderer.render(scene, camera)
+            requestAnimationFrame(render)
+
+
+
+        }
+        function setFloor(object) {
+            forMaterial(object.material, (material) => {
+                material.color.setStyle("#040912");
+            })
+        }
+
+        function forMaterial(materials, callback) {
+            if (!callback || !materials) return false;
+            if (Array.isArray(materials)) {
+                materials.forEach((mat) => {
+                    callback(mat);
+                });
+            } else {
+                callback(materials);
+            }
+        }
+
+        function addLine(modeObj, bol) {
+            const wireframe = new THREE.EdgesGeometry(modeObj.geometry);
+            const line = new THREE.LineSegments(wireframe, linematerial);
+            line.position.copy(modeObj.position);
+            line.scale.copy(modeObj.scale)
+            line.quaternion.copy(modeObj.quaternion)
+            line.rotation.copy(modeObj.rotation)
+            line.material.transparent = true;
+            modeObj.parent.add(line)
+
+        }
+
+
+    </script>
+</body>
+
+</html>
