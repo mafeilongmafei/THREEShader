@@ -4,9 +4,11 @@
 <head>
     <meta charset="UTF-8">
     <title>loader</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no">
     <style>
-        body ,html{
+        body,
+        html {
             width: 100%;
             height: 100%;
             margin: 0;
@@ -80,10 +82,11 @@
             obj.traverse(function (object) {
                 if (object.name === "LANDMASS") {
                     setFloor(object)
+
                 }
                 if (object.name === 'CITY_UNTRIANGULATED') {
-                    // object.scale.set(1, 1, 0.2)
-
+                    // object.geometry.scale(1, 0.2,1.0)
+                    // console.log(object)
                     object.geometry.computeBoundingBox();
                     object.geometry.computeBoundingSphere();
                     const {
@@ -109,7 +112,6 @@
                     );
 
                     addLine(object, true)
-
 
                     forMaterial(object.material, (material) => {
                         material.transparent = true
@@ -149,6 +151,23 @@
                             }
 
                             var FragmentBefore = `
+                            float distanceTo(vec2 src, vec2 dst) {
+                                float dx = src.x - dst.x;
+                                float dy = src.y - dst.y;
+                                float dv = dx * dx + dy * dy;
+                                return sqrt(dv);
+                            }
+                            //线性插值
+                            float lerp(float x, float y, float t) {
+                                return (1.0 - t) * x + t * y;
+                            }
+                            //对vec3 进行线性混合 插值
+                            vec3 getGradientColor(vec3 color1, vec3 color2, float index) {
+                                float r = lerp(color1.r, color2.r, index);
+                                float g = lerp(color1.g, color2.g, index);
+                                float b = lerp(color1.b, color2.b, index);
+                                return vec3(r, g, b);
+                            }
                            
                             uniform vec3 uSize;
                             uniform vec3 uTopColor;
@@ -166,26 +185,23 @@
                     
                             `
                             var FragmentAfter = /*glsl*/`
-                                 vec3 distC = mix(uColor, uTopColor,vPosition.z / (uSize.z * 0.6) ) ;      
-                                
+                                 vec3 distC = outgoingLight;
+                                 float indexMix = vPosition.z / (uSize.z * 0.6);   
+                                 distC = mix(uColor, uTopColor,indexMix ) ;      
+                                 float distOpacity = diffuseColor.a; 
                                  if(uStartTime >= 0.99){
                                      float c = vPosition.z/uMax.z;
                                      if(c > zTime && c < (zTime+0.01)){
-                                        distC = mix(distC , uFlowColor , sin(zTime)+0.8);
+                                        distC = mix(distC , uFlowColor , sin(zTime)*0.5);
                                      }
                                  }
-
                                  float rangeNum = 700.0;
-                                //  float r2 = 100.0;
                                  float r = distance(vec2(vPosition.x , vPosition.y), vec2(uCenter.x , uCenter.y));
                                  float r2  =  clamp(r/rangeNum, 0.0 , 1.0); 
                                 if(r2 > (zTime-0.025) && r2 < (zTime+0.025) ){
                                     distC = uColor2;
                                 }
-                                
-
-
-                                  gl_FragColor = vec4(distC ,1.0 );
+                                  gl_FragColor = vec4(distC ,distOpacity * sin(zTime)+0.3 );
                             `
                             shader.fragmentShader = shader.fragmentShader.replace("void main() {", FragmentBefore)
                             shader.fragmentShader = shader.fragmentShader.replace("#include <dithering_fragment>", " #include <dithering_fragment>" + FragmentAfter);
@@ -228,7 +244,7 @@
                                 
                             `
 
-
+                            console.log(shader)
 
 
                         }
@@ -237,6 +253,10 @@
                 }
             });
             scene.add(obj)
+
+
+            // const axesHelper = new THREE.AxesHelper(30000);
+            // obj.add(axesHelper);
         }, progress)
 
         function progress(progress) {
@@ -261,8 +281,6 @@
         var ambient = new THREE.AmbientLight(0xffffff, 0.6);
         scene.add(ambient);
 
-        const axesHelper = new THREE.AxesHelper(30000);
-        scene.add(axesHelper);
 
         const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
         scene.add(directionalLight);
@@ -282,6 +300,9 @@
         document.body.appendChild(renderer.domElement); //body元素中插入canvas对象
         var raycaster = new THREE.Raycaster();
         var mouse = new THREE.Vector2();
+        let wallMesh = wall(wallData[0])
+        scene.add(wallMesh)
+        console.log(wallMesh)
 
         function onMouseClick(event) {
             //通过鼠标点击的位置计算出raycaster所需要的点的位置，以屏幕中心为原点，值的范围为-1到1.
@@ -370,6 +391,7 @@
             modeObj.parent.add(line)
 
         }
+
 
 
     </script>
